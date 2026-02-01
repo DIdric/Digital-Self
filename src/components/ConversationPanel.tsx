@@ -44,7 +44,6 @@ export default function ConversationPanel() {
     },
   });
 
-  // Store ref for waveform access
   conversationRef.current = conversation;
 
   const startConversation = useCallback(async () => {
@@ -88,7 +87,6 @@ export default function ConversationPanel() {
     async (topic: string) => {
       if (appStatus === "idle") {
         await startConversation();
-        // Small delay to let connection establish before sending
         setTimeout(() => {
           conversation.sendUserMessage(topic);
         }, 500);
@@ -124,44 +122,53 @@ export default function ConversationPanel() {
   }, [appStatus]);
 
   const isActive = appStatus !== "idle" && appStatus !== "connecting";
-  const waveColor = appStatus === "speaking" ? "#6366f1" : "#22c55e";
+  const waveColor = appStatus === "speaking" ? "#04818f" : "#ffffff";
 
   return (
-    <div className="flex flex-col items-center gap-6 w-full">
-      <StatusIndicator status={appStatus} />
+    <div className="flex flex-col items-center gap-4 w-full">
+      {/* Status + Waveform only when active */}
+      {isActive && (
+        <>
+          <StatusIndicator status={appStatus} />
+          <Waveform
+            getFrequencyData={getFreqData}
+            isActive={isActive}
+            color={waveColor}
+          />
+        </>
+      )}
 
-      <Waveform
-        getFrequencyData={isActive ? getFreqData : null}
-        isActive={isActive}
-        color={waveColor}
-      />
-
+      {/* Mic button */}
       <MicButton status={appStatus} onClick={handleMicClick} />
 
       {error && (
-        <p className="text-red-400 text-sm text-center px-4">{error}</p>
+        <p className="text-red-300 text-sm text-center px-4">{error}</p>
       )}
 
-      <TopicBubbles
-        topics={TOPICS}
-        onSelect={handleTopicSelect}
-        disabled={hasStarted}
-      />
-
-      {/* Text input fallback */}
-      <div className="flex w-full gap-2 mt-2">
-        <input
-          type="text"
-          value={textInput}
-          onChange={(e) => setTextInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleTextSend()}
-          placeholder="Or type a message..."
-          className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
+      {/* Topic bubbles only before conversation starts */}
+      {!hasStarted && (
+        <TopicBubbles
+          topics={TOPICS}
+          onSelect={handleTopicSelect}
         />
+      )}
+
+      {/* Text input */}
+      <div className="flex w-full gap-2.5">
+        <div className="flex flex-1">
+          <input
+            type="text"
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleTextSend()}
+            placeholder="Or type a message..."
+            className="w-full bg-white border border-white rounded-lg px-6 py-5 text-sm text-[#5c5c5c] placeholder-[#5c5c5c] focus:outline-none transition-colors"
+          />
+        </div>
         <button
           onClick={handleTextSend}
           disabled={!textInput.trim()}
-          className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          className="px-6 py-5 bg-[#04818f] text-white text-sm font-bold rounded-lg hover:bg-[#03707c] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           Send
         </button>

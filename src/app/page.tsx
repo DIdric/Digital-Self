@@ -1,31 +1,38 @@
 import Image from "next/image";
 import ConversationPanel from "@/components/ConversationPanel";
 
-const GREETING = `Hey! Welcome to the digital version of me\u2014always available, never needs coffee. I\u2019m Didric, and I help brands engineer belonging instead of just optimizing behavior. Ask me about emotional loyalty, my frameworks, or how I think about experience design.`;
+const GREETING =
+  "Hey! Welcome my digital self\u2014always available, never needs coffee. I\u2019m Didric, ask me anything.";
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md flex flex-col items-center gap-6">
-        {/* Profile photo */}
-        <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-zinc-700 bg-zinc-800 flex items-center justify-center">
-          <Image
-            src="/didric.jpg"
-            alt="Didric"
-            width={112}
-            height={112}
-            className="object-cover w-full h-full"
-            priority
-          />
+    <main
+      className="relative min-h-screen w-full overflow-hidden bg-gradient-to-b from-[#0a2223] to-[#699a9b]"
+    >
+      {/* Background photo on top of gradient */}
+      <Image
+        src="/didric.jpg"
+        alt=""
+        fill
+        className="object-cover object-center"
+        priority
+      />
+
+      {/* Content pinned to bottom */}
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-end px-4 pb-8 sm:px-10 md:pb-16">
+        <div className="w-full max-w-[640px] flex flex-col items-center gap-4">
+          {/* Greeting card */}
+          <div className="self-start">
+            <div className="bg-[rgba(10,34,35,0.5)] rounded-lg p-6 backdrop-blur-sm">
+              <p className="text-white text-base leading-normal">
+                {GREETING}
+              </p>
+            </div>
+          </div>
+
+          {/* Conversation interface */}
+          <ConversationPanel />
         </div>
-
-        {/* Greeting */}
-        <p className="text-center text-sm text-zinc-400 leading-relaxed px-2">
-          {GREETING}
-        </p>
-
-        {/* Conversation interface */}
-        <ConversationPanel />
       </div>
     </main>
   );
