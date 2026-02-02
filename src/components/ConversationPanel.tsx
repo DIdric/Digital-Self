@@ -6,6 +6,8 @@ import Waveform from "./Waveform";
 import MicButton from "./MicButton";
 import TopicBubbles from "./TopicBubbles";
 import StatusIndicator from "./StatusIndicator";
+import MediaCard from "./MediaCard";
+import { detectMedia, type MediaDetection } from "@/lib/detectMedia";
 
 type AppStatus = "idle" | "connecting" | "listening" | "speaking";
 
@@ -16,12 +18,22 @@ const TOPICS = [
   "What are you working on now?",
 ];
 
-export default function ConversationPanel() {
+interface ConversationPanelProps {
+  onConversationStart?: () => void;
+}
+
+export default function ConversationPanel({ onConversationStart }: ConversationPanelProps) {
   const [appStatus, setAppStatus] = useState<AppStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [hasStarted, setHasStarted] = useState(false);
+  const [activeMedia, setActiveMedia] = useState<NonNullable<MediaDetection> | null>(null);
   const conversationRef = useRef<ReturnType<typeof useConversation>>(null);
+
+  const markStarted = useCallback(() => {
+    setHasStarted(true);
+    onConversationStart?.();
+  }, [onConversationStart]);
 
   const conversation = useConversation({
     onConnect: () => {
@@ -42,6 +54,15 @@ export default function ConversationPanel() {
         setAppStatus("listening");
       }
     },
+    onMessage: (message: { message: string; source: string }) => {
+      // Scan agent messages for rich media URLs
+      if (message.source === "ai") {
+        const media = detectMedia(message.message);
+        if (media) {
+          setActiveMedia(media);
+        }
+      }
+    },
   });
 
   conversationRef.current = conversation;
@@ -58,7 +79,7 @@ export default function ConversationPanel() {
       }
       const { signedUrl } = await res.json();
       await conversation.startSession({ signedUrl });
-      setHasStarted(true);
+      markStarted();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to start";
       if (msg.toLowerCase().includes("permission") || msg.toLowerCase().includes("microphone")) {
@@ -68,7 +89,7 @@ export default function ConversationPanel() {
       }
       setAppStatus("idle");
     }
-  }, [conversation]);
+  }, [conversation, markStarted]);
 
   const stopConversation = useCallback(async () => {
     await conversation.endSession();
@@ -93,9 +114,9 @@ export default function ConversationPanel() {
       } else {
         conversation.sendUserMessage(topic);
       }
-      setHasStarted(true);
+      markStarted();
     },
-    [appStatus, conversation, startConversation]
+    [appStatus, conversation, startConversation, markStarted]
   );
 
   const handleTextSend = useCallback(() => {
@@ -110,8 +131,8 @@ export default function ConversationPanel() {
       conversation.sendUserMessage(msg);
     }
     setTextInput("");
-    setHasStarted(true);
-  }, [textInput, appStatus, conversation, startConversation]);
+    markStarted();
+  }, [textInput, appStatus, conversation, startConversation, markStarted]);
 
   const getFreqData = useCallback((): Uint8Array => {
     if (!conversationRef.current) return new Uint8Array(0);
@@ -126,6 +147,13 @@ export default function ConversationPanel() {
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
+      {/* Media card overlay */}
+      {activeMedia && (
+        <div className="w-full flex justify-center mb-2">
+          <MediaCard media={activeMedia} />
+        </div>
+      )}
+
       {/* Status + Waveform only when active */}
       {isActive && (
         <>
