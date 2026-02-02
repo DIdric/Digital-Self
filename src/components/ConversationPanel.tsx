@@ -17,7 +17,7 @@ const TOPICS = [
   "What are you working on now?",
 ];
 
-const DOSE_LINK = "https://www.dose.didric.nl";
+const DOSE_LINK = "https://dose.didric.nl";
 
 interface ConversationPanelProps {
   onConversationStart?: () => void;
