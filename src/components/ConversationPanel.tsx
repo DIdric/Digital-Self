@@ -12,11 +12,12 @@ import { detectMedia, type MediaDetection } from "@/lib/detectMedia";
 type AppStatus = "idle" | "connecting" | "listening" | "speaking";
 
 const TOPICS = [
-  "What's the DOSE framework?",
   "How do you think about loyalty?",
   "Tell me about your background",
   "What are you working on now?",
 ];
+
+const DOSE_LINK = "https://www.dose.didric.nl";
 
 interface ConversationPanelProps {
   onConversationStart?: () => void;
@@ -178,6 +179,7 @@ export default function ConversationPanel({ onConversationStart }: ConversationP
         <TopicBubbles
           topics={TOPICS}
           onSelect={handleTopicSelect}
+          externalLink={{ label: "Take the DOSE scan", href: DOSE_LINK }}
         />
       )}
 
@@ -196,7 +198,7 @@ export default function ConversationPanel({ onConversationStart }: ConversationP
         <button
           onClick={handleTextSend}
           disabled={!textInput.trim()}
-          className="px-6 py-5 bg-[#04818f] text-white text-sm font-bold rounded-lg hover:bg-[#03707c] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          className="px-6 py-5 bg-[#04818f] text-white text-sm font-bold rounded-lg hover:bg-[#03707c] disabled:opacity-100 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           Send
         </button>
