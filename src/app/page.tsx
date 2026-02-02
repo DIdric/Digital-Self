@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import ConversationPanel from "@/components/ConversationPanel";
+import FloatingParticles from "@/components/FloatingParticles";
 
 const GREETING =
   "Hey! Welcome my digital self\u2014always available, never needs coffee. I\u2019m Didric, ask me anything.";
@@ -14,12 +15,15 @@ export default function Home() {
     <main
       className="relative min-h-screen w-full overflow-hidden bg-gradient-to-b from-[#0a2223] to-[#699a9b]"
     >
-      {/* Background photo on top of gradient */}
+      {/* Animated particles behind everything */}
+      <FloatingParticles />
+
+      {/* Photo on top of particles */}
       <Image
-        src="/didric.jpg"
+        src="/didric.png"
         alt=""
         fill
-        className="object-cover object-center"
+        className="object-cover object-center z-[1]"
         priority
       />
 
