@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-const PARTICLE_COUNT = 60;
+const PARTICLE_COUNT = 240;
 const COLORS = ["#04818f", "#699a9b", "#ffffff", "#0a2223"];
 
 interface Particle {
