@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { SimliClient, SimliClientConfig } from "simli-client";
 import ConversationPanelWithAvatar from "@/components/ConversationPanelWithAvatar";
 
 const GREETING =
@@ -9,6 +10,8 @@ const GREETING =
 export default function Home() {
   const [started, setStarted] = useState(false);
   const [simliConfig, setSimliConfig] = useState<{ apiKey: string; faceId: string } | null>(null);
+  const [simliClient, setSimliClient] = useState<SimliClient | null>(null);
+  const [simliReady, setSimliReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -23,6 +26,55 @@ export default function Home() {
       })
       .catch(console.error);
   }, []);
+
+  // Initialize Simli when config and refs are ready
+  useEffect(() => {
+    if (!simliConfig || !videoRef.current || !audioRef.current || simliClient) {
+      return;
+    }
+
+    const client = new SimliClient();
+
+    const config: SimliClientConfig = {
+      apiKey: simliConfig.apiKey,
+      faceID: simliConfig.faceId,
+      handleSilence: true,
+      maxSessionLength: 3600,
+      maxIdleTime: 600,
+      session_token: "",
+      videoRef: videoRef.current,
+      audioRef: audioRef.current,
+      enableConsoleLogs: true,
+      SimliURL: "https://api.simli.ai",
+      maxRetryAttempts: 100,
+      retryDelay_ms: 2000,
+      videoReceivedTimeout: 15000,
+      enableSFU: true,
+      model: "fasttalk",
+    };
+
+    client.Initialize(config);
+
+    client.on("connected", () => {
+      console.log("[Simli] Connected - avatar ready");
+      setSimliReady(true);
+    });
+
+    client.on("failed", (reason: string) => {
+      console.error("[Simli] Failed:", reason);
+    });
+
+    client.start().catch((err) => {
+      console.error("[Simli] Start error:", err);
+    });
+
+    setSimliClient(client);
+
+    // Cleanup on unmount
+    return () => {
+      client.close();
+    };
+  }, [simliConfig, simliClient]);
 
   const handleConversationStart = useCallback(() => {
     setStarted(true);
@@ -58,9 +110,8 @@ export default function Home() {
           {/* Conversation interface with Simli integration */}
           <ConversationPanelWithAvatar
             onConversationStart={handleConversationStart}
-            simliConfig={simliConfig}
-            videoRef={videoRef}
-            audioRef={audioRef}
+            simliClient={simliClient}
+            simliReady={simliReady}
           />
         </div>
       </div>
