@@ -24,6 +24,7 @@ interface ConversationPanelWithAvatarProps {
   simliReady: boolean;
   hasStarted?: boolean;
   onTopicSelect?: (topic: string) => void;
+  triggerStart?: boolean;
 }
 
 export default function ConversationPanelWithAvatar({
@@ -32,6 +33,7 @@ export default function ConversationPanelWithAvatar({
   simliReady,
   hasStarted: hasStartedProp,
   onTopicSelect: onTopicSelectProp,
+  triggerStart,
 }: ConversationPanelWithAvatarProps) {
   const [appStatus, setAppStatus] = useState<AppStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -309,6 +311,13 @@ export default function ConversationPanelWithAvatar({
   useEffect(() => {
     return cleanup;
   }, [cleanup]);
+
+  // Trigger start from outside (e.g., topic bubble click)
+  useEffect(() => {
+    if (triggerStart && appStatus === "idle") {
+      startConversation();
+    }
+  }, [triggerStart, appStatus, startConversation]);
 
   const handleMicClick = useCallback(() => {
     if (appStatus === "idle") {
