@@ -22,12 +22,16 @@ interface ConversationPanelWithAvatarProps {
   onConversationStart?: () => void;
   simliClient: SimliClient | null;
   simliReady: boolean;
+  hasStarted?: boolean;
+  onTopicSelect?: (topic: string) => void;
 }
 
 export default function ConversationPanelWithAvatar({
   onConversationStart,
   simliClient,
   simliReady,
+  hasStarted: hasStartedProp,
+  onTopicSelect: onTopicSelectProp,
 }: ConversationPanelWithAvatarProps) {
   const [appStatus, setAppStatus] = useState<AppStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -320,8 +324,9 @@ export default function ConversationPanelWithAvatar({
         await startConversation();
       }
       markStarted();
+      onTopicSelectProp?.(topic);
     },
-    [appStatus, startConversation, markStarted]
+    [appStatus, startConversation, markStarted, onTopicSelectProp]
   );
 
   const handleTextSend = useCallback(() => {
@@ -336,6 +341,7 @@ export default function ConversationPanelWithAvatar({
   }, [textInput, appStatus, startConversation, markStarted]);
 
   const isActive = appStatus !== "idle" && appStatus !== "connecting";
+  const showTopicBubbles = hasStartedProp !== undefined ? !hasStartedProp : !hasStarted;
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
@@ -355,15 +361,6 @@ export default function ConversationPanelWithAvatar({
       <MicButton status={appStatus} onClick={handleMicClick} />
 
       {error && <p className="text-red-300 text-sm text-center px-4">{error}</p>}
-
-      {/* Topic bubbles only before conversation starts */}
-      {!hasStarted && (
-        <TopicBubbles
-          topics={TOPICS}
-          onSelect={handleTopicSelect}
-          externalLink={{ label: "Take the DOSE scan", href: DOSE_LINK }}
-        />
-      )}
 
       {/* Text input */}
       <div className="flex w-full gap-2.5">
