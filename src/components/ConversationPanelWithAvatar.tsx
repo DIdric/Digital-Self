@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, RefObject } from "react";
-import { SimliClient, SimliClientConfig } from "simli-client";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { SimliClient } from "simli-client";
 import MicButton from "./MicButton";
 import TopicBubbles from "./TopicBubbles";
 import StatusIndicator from "./StatusIndicator";
@@ -20,16 +20,14 @@ const DOSE_LINK = "https://dose.didric.nl";
 
 interface ConversationPanelWithAvatarProps {
   onConversationStart?: () => void;
-  simliConfig: { apiKey: string; faceId: string } | null;
-  videoRef: RefObject<HTMLVideoElement | null>;
-  audioRef: RefObject<HTMLAudioElement | null>;
+  simliClient: SimliClient | null;
+  simliReady: boolean;
 }
 
 export default function ConversationPanelWithAvatar({
   onConversationStart,
-  simliConfig,
-  videoRef,
-  audioRef,
+  simliClient,
+  simliReady,
 }: ConversationPanelWithAvatarProps) {
   const [appStatus, setAppStatus] = useState<AppStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +35,6 @@ export default function ConversationPanelWithAvatar({
   const [hasStarted, setHasStarted] = useState(false);
   const [activeMedia, setActiveMedia] = useState<NonNullable<MediaDetection> | null>(null);
 
-  const simliClientRef = useRef<SimliClient | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -48,64 +45,6 @@ export default function ConversationPanelWithAvatar({
     setHasStarted(true);
     onConversationStart?.();
   }, [onConversationStart]);
-
-  // Initialize Simli client
-  const initSimli = useCallback(async (): Promise<SimliClient | null> => {
-    // Wait for config and refs with retry
-    const maxAttempts = 10;
-    const retryDelay = 100;
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      if (simliConfig && videoRef.current && audioRef.current) {
-        break;
-      }
-      if (attempt < maxAttempts - 1) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-      }
-    }
-
-    if (!simliConfig || !videoRef.current || !audioRef.current) {
-      console.warn("[Simli] Missing config or refs after retries");
-      return null;
-    }
-
-    const client = new SimliClient();
-    simliClientRef.current = client;
-
-    const config: SimliClientConfig = {
-      apiKey: simliConfig.apiKey,
-      faceID: simliConfig.faceId,
-      handleSilence: true,
-      maxSessionLength: 3600,
-      maxIdleTime: 600,
-      session_token: "",
-      videoRef: videoRef.current,
-      audioRef: audioRef.current,
-      enableConsoleLogs: true,
-      SimliURL: "https://api.simli.ai",
-      maxRetryAttempts: 100,
-      retryDelay_ms: 2000,
-      videoReceivedTimeout: 15000,
-      enableSFU: true,
-      model: "fasttalk",
-    };
-
-    client.Initialize(config);
-
-    return new Promise<SimliClient>((resolve, reject) => {
-      client.on("connected", () => {
-        console.log("[Simli] Connected");
-        resolve(client);
-      });
-
-      client.on("failed", (reason: string) => {
-        console.error("[Simli] Failed:", reason);
-        reject(new Error(reason));
-      });
-
-      client.start().catch((err) => reject(err));
-    });
-  }, [simliConfig, videoRef, audioRef]);
 
   // Convert base64 to Uint8Array
   const base64ToUint8Array = useCallback((base64: string): Uint8Array => {
@@ -149,9 +88,9 @@ export default function ConversationPanelWithAvatar({
 
               case "audio":
                 // 🎯 THE HANDSHAKE: Send ElevenLabs audio to Simli
-                if (data.audio_event?.audio_base_64 && simliClientRef.current) {
+                if (data.audio_event?.audio_base_64 && simliClient) {
                   const audioData = base64ToUint8Array(data.audio_event.audio_base_64);
-                  simliClientRef.current.sendAudioData(audioData);
+                  simliClient.sendAudioData(audioData);
                 }
                 break;
 
@@ -216,7 +155,7 @@ export default function ConversationPanelWithAvatar({
         setTimeout(() => reject(new Error("Connection timeout")), 15000);
       });
     },
-    [base64ToUint8Array]
+    [base64ToUint8Array, simliClient]
   );
 
   // Start microphone streaming to ElevenLabs
@@ -281,9 +220,9 @@ export default function ConversationPanelWithAvatar({
     }
   }, []);
 
-  // Cleanup function
+  // Cleanup function (only closes ElevenLabs + mic, NOT Simli - avatar stays on)
   const cleanup = useCallback(() => {
-    console.log("[Cleanup] Closing connections...");
+    console.log("[Cleanup] Closing conversation connections...");
 
     conversationReadyRef.current = false;
 
@@ -297,10 +236,7 @@ export default function ConversationPanelWithAvatar({
       websocketRef.current = null;
     }
 
-    if (simliClientRef.current) {
-      simliClientRef.current.close();
-      simliClientRef.current = null;
-    }
+    // NOTE: Simli client is NOT closed here - avatar stays visible
 
     if (audioContextRef.current) {
       audioContextRef.current.close();
@@ -319,6 +255,11 @@ export default function ConversationPanelWithAvatar({
     setAppStatus("connecting");
 
     try {
+      // Check if Simli avatar is ready
+      if (!simliReady || !simliClient) {
+        throw new Error("Avatar not ready yet. Please wait a moment and try again.");
+      }
+
       // Get ElevenLabs signed URL
       const res = await fetch("/api/get-signed-url");
       if (!res.ok) throw new Error("Failed to get ElevenLabs config");
@@ -330,18 +271,11 @@ export default function ConversationPanelWithAvatar({
 
       console.log("[Init] Got signed URL");
 
-      // Initialize Simli first
-      console.log("[Init] Starting Simli...");
-      const simliClient = await initSimli();
-      if (!simliClient) {
-        throw new Error("Failed to initialize Simli avatar");
-      }
-
-      // Initialize microphone (but don't send yet)
+      // Initialize microphone
       console.log("[Init] Setting up microphone...");
       await startMicrophoneStream();
 
-      // Then connect to ElevenLabs (conversation will be initialized)
+      // Connect to ElevenLabs (conversation will be initialized)
       console.log("[Init] Connecting to ElevenLabs...");
       await initElevenLabs(signedUrl);
 
@@ -360,7 +294,7 @@ export default function ConversationPanelWithAvatar({
       setAppStatus("idle");
       cleanup();
     }
-  }, [initSimli, initElevenLabs, startMicrophoneStream, markStarted, cleanup]);
+  }, [simliReady, simliClient, initElevenLabs, startMicrophoneStream, markStarted, cleanup]);
 
   const stopConversation = useCallback(() => {
     cleanup();
