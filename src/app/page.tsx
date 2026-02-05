@@ -18,6 +18,7 @@ const DOSE_LINK = "https://dose.didric.nl";
 
 export default function Home() {
   const [started, setStarted] = useState(false);
+  const [triggerStart, setTriggerStart] = useState(false);
   const [simliConfig, setSimliConfig] = useState<{ apiKey: string; faceId: string } | null>(null);
   const [simliClient, setSimliClient] = useState<SimliClient | null>(null);
   const [simliReady, setSimliReady] = useState(false);
@@ -116,7 +117,10 @@ export default function Home() {
               </div>
               <TopicBubbles
                 topics={TOPICS}
-                onSelect={() => setStarted(true)}
+                onSelect={() => {
+                  setStarted(true);
+                  setTriggerStart(true);
+                }}
                 externalLink={{ label: "Take the DOSE scan", href: DOSE_LINK }}
               />
             </div>
@@ -131,6 +135,7 @@ export default function Home() {
             simliClient={simliClient}
             simliReady={simliReady}
             hasStarted={started}
+            triggerStart={triggerStart}
           />
         </div>
       </div>
