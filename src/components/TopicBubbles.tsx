@@ -23,7 +23,7 @@ export default function TopicBubbles({ topics, onSelect, externalLink }: TopicBu
         <button
           key={topic}
           onClick={() => onSelect(topic)}
-          className="px-3 py-1.5 text-sm rounded-full border border-white/30 text-white/80 hover:border-white hover:text-white backdrop-blur-sm transition-colors cursor-pointer"
+          className="px-3 py-1.5 text-sm rounded-full border border-[#04818f] text-white bg-[#04818f] hover:bg-[#03707c] transition-colors cursor-pointer"
         >
           {topic}
         </button>
