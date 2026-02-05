@@ -50,9 +50,22 @@ export default function ConversationPanelWithAvatar({
   }, [onConversationStart]);
 
   // Initialize Simli client
-  const initSimli = useCallback(async () => {
+  const initSimli = useCallback(async (): Promise<SimliClient | null> => {
+    // Wait for config and refs with retry
+    const maxAttempts = 10;
+    const retryDelay = 100;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (simliConfig && videoRef.current && audioRef.current) {
+        break;
+      }
+      if (attempt < maxAttempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+
     if (!simliConfig || !videoRef.current || !audioRef.current) {
-      console.warn("[Simli] Missing config or refs");
+      console.warn("[Simli] Missing config or refs after retries");
       return null;
     }
 
@@ -319,7 +332,10 @@ export default function ConversationPanelWithAvatar({
 
       // Initialize Simli first
       console.log("[Init] Starting Simli...");
-      await initSimli();
+      const simliClient = await initSimli();
+      if (!simliClient) {
+        throw new Error("Failed to initialize Simli avatar");
+      }
 
       // Initialize microphone (but don't send yet)
       console.log("[Init] Setting up microphone...");
