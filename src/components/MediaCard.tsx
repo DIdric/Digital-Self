@@ -40,6 +40,42 @@ export default function MediaCard({ media }: MediaCardProps) {
     );
   }
 
+  if (media.type === "download") {
+    return (
+      <a
+        href={media.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block animate-[slide-in_300ms_ease-out] max-w-[320px]"
+      >
+        <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-4 hover:border-[#04818f]/50 transition-colors">
+          <div className="flex items-center gap-3 mb-2">
+            {/* Download / document icon */}
+            <svg
+              className="w-5 h-5 text-[#04818f] shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="18" x2="12" y2="12" />
+              <polyline points="9 15 12 18 15 15" />
+            </svg>
+            <span className="text-white/60 text-xs font-medium uppercase tracking-wider">
+              Case Study
+            </span>
+          </div>
+          <p className="text-white text-sm truncate">{media.filename || "Download"}</p>
+          <p className="text-[#04818f] text-xs mt-2">View document &rarr;</p>
+        </div>
+      </a>
+    );
+  }
+
   // YouTube or Vimeo
   return (
     <>

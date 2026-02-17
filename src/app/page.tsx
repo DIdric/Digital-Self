@@ -114,6 +114,17 @@ export default function Home() {
             <div className="flex flex-col gap-4 animate-[fade-in_400ms_ease-out]">
               <div className="bg-[rgba(10,34,35,0.5)] rounded-lg p-6 backdrop-blur-sm">
                 <p className="text-white text-base leading-normal">{GREETING}</p>
+                {/* Loading indicator while avatar connects */}
+                {!simliReady && (
+                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/10">
+                    <div className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#04818f] animate-[loading-dot_1.4s_ease-in-out_infinite]" style={{ animationDelay: "0s" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#04818f] animate-[loading-dot_1.4s_ease-in-out_infinite]" style={{ animationDelay: "0.2s" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#04818f] animate-[loading-dot_1.4s_ease-in-out_infinite]" style={{ animationDelay: "0.4s" }} />
+                    </div>
+                    <span className="text-white/50 text-xs">Loading avatar...</span>
+                  </div>
+                )}
               </div>
               <TopicBubbles
                 topics={TOPICS}
