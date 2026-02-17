@@ -25,6 +25,7 @@ interface ConversationPanelWithAvatarProps {
   hasStarted?: boolean;
   onTopicSelect?: (topic: string) => void;
   triggerStart?: boolean;
+  visitorId?: string;
 }
 
 export default function ConversationPanelWithAvatar({
@@ -34,6 +35,7 @@ export default function ConversationPanelWithAvatar({
   hasStarted: hasStartedProp,
   onTopicSelect: onTopicSelectProp,
   triggerStart,
+  visitorId = "anonymous",
 }: ConversationPanelWithAvatarProps) {
   const [appStatus, setAppStatus] = useState<AppStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -73,10 +75,13 @@ export default function ConversationPanelWithAvatar({
         ws.onopen = () => {
           console.log("[ElevenLabs] WebSocket connected");
 
-          // Send minimal conversation initiation
+          // Send conversation initiation with visitor_id for persistent memory
           ws.send(
             JSON.stringify({
               type: "conversation_initiation_client_data",
+              dynamic_variables: {
+                visitor_id: visitorId,
+              },
             })
           );
         };
@@ -161,7 +166,7 @@ export default function ConversationPanelWithAvatar({
         setTimeout(() => reject(new Error("Connection timeout")), 15000);
       });
     },
-    [base64ToUint8Array, simliClient]
+    [base64ToUint8Array, simliClient, visitorId]
   );
 
   // Start microphone streaming to ElevenLabs

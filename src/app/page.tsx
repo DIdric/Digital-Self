@@ -16,14 +16,31 @@ const TOPICS = [
 
 const DOSE_LINK = "https://dose.didric.nl";
 
+function getOrCreateVisitorId(): string {
+  if (typeof window === "undefined") return "anonymous";
+  const key = "didric_visitor_id";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
 export default function Home() {
   const [started, setStarted] = useState(false);
   const [triggerStart, setTriggerStart] = useState(false);
   const [simliConfig, setSimliConfig] = useState<{ apiKey: string; faceId: string } | null>(null);
   const [simliClient, setSimliClient] = useState<SimliClient | null>(null);
   const [simliReady, setSimliReady] = useState(false);
+  const [visitorId, setVisitorId] = useState("anonymous");
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Generate persistent visitor ID on mount
+  useEffect(() => {
+    setVisitorId(getOrCreateVisitorId());
+  }, []);
 
   // Fetch Simli config on mount
   useEffect(() => {
@@ -147,6 +164,7 @@ export default function Home() {
             simliReady={simliReady}
             hasStarted={started}
             triggerStart={triggerStart}
+            visitorId={visitorId}
           />
         </div>
       </div>
