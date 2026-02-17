@@ -39,7 +39,7 @@ export default function Home() {
 
   // Initialize Simli when config and refs are ready
   useEffect(() => {
-    if (!simliConfig || !videoRef.current || !audioRef.current || simliClient) {
+    if (!simliConfig || !videoRef.current || !audioRef.current) {
       return;
     }
 
@@ -80,11 +80,11 @@ export default function Home() {
 
     setSimliClient(client);
 
-    // Cleanup on unmount
+    // Cleanup on unmount only
     return () => {
       client.close();
     };
-  }, [simliConfig, simliClient]);
+  }, [simliConfig]);
 
   const handleConversationStart = useCallback(() => {
     setStarted(true);
