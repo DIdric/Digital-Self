@@ -96,6 +96,7 @@ interface ConversationPanelWithAvatarProps {
   hasStarted?: boolean;
   onTopicSelect?: (topic: string) => void;
   triggerStart?: boolean;
+  pendingTopic?: string;
   visitorId?: string;
 }
 
@@ -106,6 +107,7 @@ export default function ConversationPanelWithAvatar({
   hasStarted: hasStartedProp,
   onTopicSelect: onTopicSelectProp,
   triggerStart,
+  pendingTopic,
   visitorId = "anonymous",
 }: ConversationPanelWithAvatarProps) {
   const [appStatus, setAppStatus] = useState<AppStatus>("idle");
@@ -397,6 +399,14 @@ export default function ConversationPanelWithAvatar({
       console.log("[Init] All systems ready!");
       setAppStatus("listening");
       markStarted();
+
+      // If a topic bubble was clicked, send it as the opening message
+      if (pendingTopic && websocketRef.current?.readyState === WebSocket.OPEN) {
+        console.log("[Topic] Sending opening topic:", pendingTopic);
+        websocketRef.current.send(
+          JSON.stringify({ type: "user_message", user_message: pendingTopic })
+        );
+      }
     } catch (err) {
       console.error("[Start] Error:", err);
       const msg = err instanceof Error ? err.message : "Failed to start";
@@ -408,7 +418,7 @@ export default function ConversationPanelWithAvatar({
       setAppStatus("idle");
       cleanup();
     }
-  }, [simliReady, simliClient, initElevenLabs, startMicrophoneStream, markStarted, cleanup]);
+  }, [simliReady, simliClient, initElevenLabs, startMicrophoneStream, markStarted, cleanup, pendingTopic]);
 
   const stopConversation = useCallback(() => {
     cleanup();
@@ -450,10 +460,25 @@ export default function ConversationPanelWithAvatar({
     const msg = textInput.trim();
     if (!msg) return;
 
-    if (appStatus === "idle") {
-      startConversation();
-    }
     setTextInput("");
+
+    if (appStatus === "idle") {
+      // Start conversation first, message will be sent once connected
+      // Store in a local variable so the async startConversation can use it
+      startConversation().then(() => {
+        if (websocketRef.current?.readyState === WebSocket.OPEN) {
+          websocketRef.current.send(
+            JSON.stringify({ type: "user_message", user_message: msg })
+          );
+        }
+      });
+    } else if (websocketRef.current?.readyState === WebSocket.OPEN) {
+      // Conversation already running — send immediately
+      websocketRef.current.send(
+        JSON.stringify({ type: "user_message", user_message: msg })
+      );
+    }
+
     markStarted();
   }, [textInput, appStatus, startConversation, markStarted]);
 

@@ -30,6 +30,7 @@ function getOrCreateVisitorId(): string {
 export default function Home() {
   const [started, setStarted] = useState(false);
   const [triggerStart, setTriggerStart] = useState(false);
+  const [pendingTopic, setPendingTopic] = useState<string | undefined>(undefined);
   const [simliConfig, setSimliConfig] = useState<{ apiKey: string; faceId: string } | null>(null);
   const [simliClient, setSimliClient] = useState<SimliClient | null>(null);
   const [simliReady, setSimliReady] = useState(false);
@@ -145,7 +146,8 @@ export default function Home() {
               </div>
               <TopicBubbles
                 topics={TOPICS}
-                onSelect={() => {
+                onSelect={(topic) => {
+                  setPendingTopic(topic);
                   setStarted(true);
                   setTriggerStart(true);
                 }}
@@ -164,6 +166,7 @@ export default function Home() {
             simliReady={simliReady}
             hasStarted={started}
             triggerStart={triggerStart}
+            pendingTopic={pendingTopic}
             visitorId={visitorId}
           />
         </div>
