@@ -7,6 +7,76 @@ import TopicBubbles from "./TopicBubbles";
 import StatusIndicator from "./StatusIndicator";
 import MediaCard from "./MediaCard";
 import { detectMedia, type MediaDetection } from "@/lib/detectMedia";
+import { detectStructured } from "@/lib/detectStructured";
+import IdeaCard from "./IdeaCard";
+import SlideCard from "./SlideCard";
+import ConnectCard from "./ConnectCard";
+
+/** Convert an ArrayBuffer (Int16 PCM) to a base64 string for WebSocket transmission. */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Inline AudioWorklet processor source.
+ * Runs on the audio thread: resamples mic input from the native rate to the
+ * target rate (negotiated by ElevenLabs), converts to Int16 PCM, and posts
+ * the buffer back to the main thread for WebSocket transmission.
+ */
+const MIC_WORKLET_SRC = `
+class MicProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.targetRate = 16000;
+    this.buffer = [];
+    // ~250ms chunks (targetRate / 4 samples), matching the ElevenLabs SDK
+    this.chunkSize = this.targetRate / 4;
+    this.port.onmessage = (e) => {
+      if (e.data.type === 'setRate') {
+        this.targetRate = e.data.rate;
+        this.chunkSize = Math.round(this.targetRate / 4);
+        this.buffer = [];
+      }
+    };
+  }
+
+  process(inputs) {
+    const input = inputs[0]?.[0];
+    if (!input || input.length === 0) return true;
+
+    // Linear interpolation resample from native rate to targetRate
+    const ratio = sampleRate / this.targetRate;
+    const outLen = Math.round(input.length / ratio);
+    for (let i = 0; i < outLen; i++) {
+      const s = i * ratio;
+      const lo = Math.floor(s);
+      const hi = Math.min(lo + 1, input.length - 1);
+      const frac = s - lo;
+      this.buffer.push(input[lo] * (1 - frac) + input[hi] * frac);
+    }
+
+    // Flush in chunks so latency stays low
+    while (this.buffer.length >= this.chunkSize) {
+      const chunk = this.buffer.splice(0, this.chunkSize);
+      const int16 = new Int16Array(this.chunkSize);
+      for (let i = 0; i < this.chunkSize; i++) {
+        const s = Math.max(-1, Math.min(1, chunk[i]));
+        int16[i] = s < 0 ? s * 32768 : s * 32767;
+      }
+      this.port.postMessage(int16.buffer, [int16.buffer]);
+    }
+    return true;
+  }
+}
+registerProcessor('mic-processor', MicProcessor);
+`;
 
 type AppStatus = "idle" | "connecting" | "listening" | "speaking";
 
@@ -42,12 +112,17 @@ export default function ConversationPanelWithAvatar({
   const [textInput, setTextInput] = useState("");
   const [hasStarted, setHasStarted] = useState(false);
   const [activeMedia, setActiveMedia] = useState<NonNullable<MediaDetection> | null>(null);
+  const [ideas, setIdeas] = useState<string[]>([]);
+  const [slides, setSlides] = useState<string[]>([]);
+  const [showConnect, setShowConnect] = useState(false);
 
   const websocketRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const conversationReadyRef = useRef<boolean>(false);
+  // Negotiated by ElevenLabs server in conversation_initiation_metadata
+  const targetSampleRateRef = useRef<number>(16000);
 
   const markStarted = useCallback(() => {
     setHasStarted(true);
@@ -91,11 +166,21 @@ export default function ConversationPanelWithAvatar({
             const data = JSON.parse(event.data);
 
             switch (data.type) {
-              case "conversation_initiation_metadata":
-                console.log("[ElevenLabs] Conversation initialized", data.conversation_initiation_metadata_event?.conversation_id);
+              case "conversation_initiation_metadata": {
+                const meta = data.conversation_initiation_metadata_event;
+                console.log("[ElevenLabs] Conversation initialized", meta?.conversation_id);
+                // Read the server-negotiated input audio format (e.g. "pcm_16000")
+                // and update the worklet so it resamples to the correct rate.
+                const fmtStr: string = meta?.user_input_audio_format ?? "pcm_16000";
+                const negotiatedRate = parseInt(fmtStr.split("_")[1]) || 16000;
+                console.log(`[ElevenLabs] Negotiated input format: ${fmtStr} (${negotiatedRate}Hz)`);
+                targetSampleRateRef.current = negotiatedRate;
+                // Tell the already-running worklet to use the correct rate
+                workletNodeRef.current?.port.postMessage({ type: "setRate", rate: negotiatedRate });
                 conversationReadyRef.current = true;
                 resolve(ws);
                 break;
+              }
 
               case "audio":
                 // 🎯 THE HANDSHAKE: Send ElevenLabs audio to Simli
@@ -110,19 +195,30 @@ export default function ConversationPanelWithAvatar({
                 setAppStatus("listening");
                 break;
 
-              case "agent_response":
-                console.log("[Agent]", data.agent_response_event?.agent_response);
+              case "agent_response": {
+                const response = data.agent_response_event?.agent_response;
+                console.log("[Agent]", response);
                 setAppStatus("speaking");
 
-                // Check for media in response
-                const response = data.agent_response_event?.agent_response;
                 if (response) {
+                  // Check for rich media (LinkedIn, YouTube, etc.)
                   const media = detectMedia(response);
-                  if (media) {
-                    setActiveMedia(media);
+                  if (media) setActiveMedia(media);
+
+                  // Check for structured content (brainstorm ideas, pitch slides, connect CTA)
+                  const structured = detectStructured(response);
+                  for (const item of structured) {
+                    if (item.type === "idea") {
+                      setIdeas((prev) => [...prev, item.text]);
+                    } else if (item.type === "slide") {
+                      setSlides((prev) => [...prev, item.title]);
+                    } else if (item.type === "connect") {
+                      setShowConnect(true);
+                    }
                   }
                 }
                 break;
+              }
 
               case "agent_response_correction":
                 // Agent was interrupted
@@ -169,62 +265,53 @@ export default function ConversationPanelWithAvatar({
     [base64ToUint8Array, simliClient, visitorId]
   );
 
-  // Start microphone streaming to ElevenLabs
+  // Start microphone streaming to ElevenLabs via AudioWorkletNode
   const startMicrophoneStream = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 16000,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-        }
+        },
       });
       mediaStreamRef.current = stream;
 
-      // Create AudioContext
-      audioContextRef.current = new AudioContext({ sampleRate: 16000 });
+      // AudioContext at native device rate — worklet handles resampling
+      audioContextRef.current = new AudioContext();
+      // Mobile browsers start AudioContext suspended until a user gesture resumes it
+      if (audioContextRef.current.state === "suspended") {
+        await audioContextRef.current.resume();
+      }
+      const nativeRate = audioContextRef.current.sampleRate;
+      console.log(`[Mic] AudioContext at ${nativeRate}Hz (worklet will resample to target rate)`);
+
+      // Load the inline worklet via a Blob URL (avoids needing a public .js file)
+      const blob = new Blob([MIC_WORKLET_SRC], { type: "application/javascript" });
+      const workletUrl = URL.createObjectURL(blob);
+      await audioContextRef.current.audioWorklet.addModule(workletUrl);
+      URL.revokeObjectURL(workletUrl);
+
       const source = audioContextRef.current.createMediaStreamSource(stream);
+      const workletNode = new AudioWorkletNode(audioContextRef.current, "mic-processor");
+      workletNodeRef.current = workletNode;
 
-      // Use ScriptProcessor for audio processing
-      const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
+      // Pre-set the initial target rate (may be updated once metadata arrives)
+      workletNode.port.postMessage({ type: "setRate", rate: targetSampleRateRef.current });
 
-      source.connect(processor);
-      processor.connect(audioContextRef.current.destination);
-
-      processor.onaudioprocess = (e) => {
+      // Each message from the worklet is a buffer of Int16 PCM at the target rate
+      workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
         const ws = websocketRef.current;
-        // Only send audio when conversation is ready and websocket is open
         if (ws && ws.readyState === WebSocket.OPEN && conversationReadyRef.current) {
-          const inputData = e.inputBuffer.getChannelData(0);
-
-          // Convert Float32 [-1, 1] to Int16 PCM
-          const pcmData = new Int16Array(inputData.length);
-          for (let i = 0; i < inputData.length; i++) {
-            const sample = Math.max(-1, Math.min(1, inputData[i]));
-            pcmData[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-          }
-
-          // Convert to base64
-          const bytes = new Uint8Array(pcmData.buffer);
-          let binary = "";
-          const chunkSize = 0x8000;
-          for (let i = 0; i < bytes.length; i += chunkSize) {
-            const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-            binary += String.fromCharCode.apply(null, Array.from(chunk));
-          }
-          const base64Audio = btoa(binary);
-
-          // Send user audio chunk
-          ws.send(JSON.stringify({
-            user_audio_chunk: base64Audio
-          }));
+          ws.send(JSON.stringify({ user_audio_chunk: arrayBufferToBase64(e.data) }));
         }
       };
 
-      console.log("[Mic] Streaming ready");
+      // Connect mic → worklet. No destination connection: worklet has no audio output.
+      source.connect(workletNode);
+
+      console.log("[Mic] AudioWorklet streaming ready");
     } catch (err) {
       console.error("[Mic] Error:", err);
       throw new Error("Microphone access denied");
@@ -237,9 +324,10 @@ export default function ConversationPanelWithAvatar({
 
     conversationReadyRef.current = false;
 
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
+    if (workletNodeRef.current) {
+      workletNodeRef.current.disconnect();
+      workletNodeRef.current.port.close();
+      workletNodeRef.current = null;
     }
 
     if (websocketRef.current) {
@@ -264,6 +352,10 @@ export default function ConversationPanelWithAvatar({
   const startConversation = useCallback(async () => {
     setError(null);
     setAppStatus("connecting");
+    setIdeas([]);
+    setSlides([]);
+    setShowConnect(false);
+    setActiveMedia(null);
 
     try {
       // Check if Simli avatar is ready
@@ -359,10 +451,37 @@ export default function ConversationPanelWithAvatar({
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
-      {/* Media card overlay */}
+      {/* Active pitch slide (shows only the latest slide) */}
+      {slides.length > 0 && (
+        <div className="w-full flex justify-center">
+          <SlideCard
+            title={slides[slides.length - 1]}
+            slideNumber={slides.length}
+            totalSlides={Math.max(slides.length, 4)}
+          />
+        </div>
+      )}
+
+      {/* Brainstorm idea cards */}
+      {ideas.length > 0 && (
+        <div className="w-full flex flex-col items-center gap-2">
+          {ideas.map((idea, i) => (
+            <IdeaCard key={i} text={idea} index={i} />
+          ))}
+        </div>
+      )}
+
+      {/* Rich media card (LinkedIn, YouTube, download) */}
       {activeMedia && (
         <div className="w-full flex justify-center mb-2">
           <MediaCard media={activeMedia} />
+        </div>
+      )}
+
+      {/* Connect CTA */}
+      {showConnect && (
+        <div className="w-full flex justify-center">
+          <ConnectCard />
         </div>
       )}
 
