@@ -446,49 +446,82 @@ export default function ConversationPanelWithAvatar({
     markStarted();
   }, [textInput, appStatus, startConversation, markStarted]);
 
+  // Dismiss all cards at once
+  const dismissCards = useCallback(() => {
+    setIdeas([]);
+    setSlides([]);
+    setActiveMedia(null);
+    setShowConnect(false);
+  }, []);
+
   const isActive = appStatus !== "idle" && appStatus !== "connecting";
-  const showTopicBubbles = hasStartedProp !== undefined ? !hasStartedProp : !hasStarted;
+  const hasCards = slides.length > 0 || ideas.length > 0 || !!activeMedia || showConnect;
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
-      {/* Active pitch slide (shows only the latest slide) */}
-      {slides.length > 0 && (
-        <div className="w-full flex justify-center">
-          <SlideCard
-            title={slides[slides.length - 1]}
-            slideNumber={slides.length}
-            totalSlides={Math.max(slides.length, 4)}
-          />
-        </div>
-      )}
+      {/* Card overlay — only appears when the agent sends something to present.
+          Slides up smoothly, dismissed with the × button in the top-right corner. */}
+      {hasCards && (
+        <div className="animate-[slide-in_300ms_ease-out] w-full relative">
+          {/* Dismiss button */}
+          <button
+            onClick={dismissCards}
+            aria-label="Dismiss"
+            className="absolute -top-1 -right-1 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/25 text-white/50 hover:text-white transition-colors"
+          >
+            <svg
+              className="w-3.5 h-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
 
-      {/* Brainstorm idea cards */}
-      {ideas.length > 0 && (
-        <div className="w-full flex flex-col items-center gap-2">
-          {ideas.map((idea, i) => (
-            <IdeaCard key={i} text={idea} index={i} />
-          ))}
-        </div>
-      )}
+          {/* Card stack — padded right so content doesn't sit under the × */}
+          <div className="flex flex-col items-center gap-2 pr-6">
+            {/* Pitch slide — shows the latest slide with a progress bar */}
+            {slides.length > 0 && (
+              <div className="w-full flex justify-center">
+                <SlideCard
+                  title={slides[slides.length - 1]}
+                  slideNumber={slides.length}
+                  totalSlides={Math.max(slides.length, 4)}
+                />
+              </div>
+            )}
 
-      {/* Rich media card (LinkedIn, YouTube, download) */}
-      {activeMedia && (
-        <div className="w-full flex justify-center mb-2">
-          <MediaCard media={activeMedia} />
-        </div>
-      )}
+            {/* Brainstorm idea cards */}
+            {ideas.length > 0 && (
+              <div className="w-full flex flex-col items-center gap-2">
+                {ideas.map((idea, i) => (
+                  <IdeaCard key={i} text={idea} index={i} />
+                ))}
+              </div>
+            )}
 
-      {/* Connect CTA */}
-      {showConnect && (
-        <div className="w-full flex justify-center">
-          <ConnectCard />
+            {/* Rich media card (LinkedIn, YouTube, download) */}
+            {activeMedia && (
+              <div className="w-full flex justify-center">
+                <MediaCard media={activeMedia} />
+              </div>
+            )}
+
+            {/* Connect CTA */}
+            {showConnect && (
+              <div className="w-full flex justify-center">
+                <ConnectCard />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* Status indicator only when active */}
-      {isActive && (
-        <StatusIndicator status={appStatus} />
-      )}
+      {isActive && <StatusIndicator status={appStatus} />}
 
       {/* Mic button */}
       <MicButton status={appStatus} onClick={handleMicClick} />
