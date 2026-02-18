@@ -470,20 +470,63 @@ export default function ConversationPanelWithAvatar({
   const isActive = appStatus !== "idle" && appStatus !== "connecting";
   const hasCards = slides.length > 0 || ideas.length > 0 || videos.length > 0 || !!activeMedia || showConnect;
 
+  // Pull-down-to-dismiss gesture state
+  const dragStartYRef = useRef<number>(0);
+  const dragCurrentYRef = useRef<number>(0);
+  const cardWrapperRef = useRef<HTMLDivElement>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    dragStartYRef.current = e.touches[0].clientY;
+    dragCurrentYRef.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    dragCurrentYRef.current = e.touches[0].clientY;
+    const delta = dragCurrentYRef.current - dragStartYRef.current;
+    if (delta > 0 && cardWrapperRef.current) {
+      // Follow finger down, with resistance
+      cardWrapperRef.current.style.transform = `translateY(${Math.min(delta * 0.6, 80)}px)`;
+      cardWrapperRef.current.style.opacity = `${Math.max(0, 1 - delta / 160)}`;
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    const delta = dragCurrentYRef.current - dragStartYRef.current;
+    if (delta > 60) {
+      // Pulled far enough — dismiss
+      dismissCards();
+    } else if (cardWrapperRef.current) {
+      // Snap back
+      cardWrapperRef.current.style.transform = "";
+      cardWrapperRef.current.style.opacity = "";
+    }
+  }, [dismissCards]);
+
   return (
     <div className="flex flex-col items-center gap-4 w-full">
       {/* Card overlay — only appears when the agent sends something to present.
-          Slides up smoothly, dismissed with the × button in the top-right corner. */}
+          Slides up smoothly. Pull down or tap × to dismiss. */}
       {hasCards && (
-        <div className="animate-[slide-in_300ms_ease-out] w-full relative">
-          {/* Dismiss button */}
+        <div
+          ref={cardWrapperRef}
+          className="animate-[slide-in_300ms_ease-out] w-full relative transition-none"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Drag handle — universal "swipe down to dismiss" affordance */}
+          <div className="flex justify-center mb-2">
+            <div className="w-10 h-1 rounded-full bg-white/30" />
+          </div>
+
+          {/* Dismiss × button — top right */}
           <button
             onClick={dismissCards}
             aria-label="Dismiss"
-            className="absolute -top-1 -right-1 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/25 text-white/50 hover:text-white transition-colors"
+            className="absolute top-0 -right-1 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/30 text-white/70 hover:text-white transition-colors"
           >
             <svg
-              className="w-3.5 h-3.5"
+              className="w-4 h-4"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -495,7 +538,7 @@ export default function ConversationPanelWithAvatar({
           </button>
 
           {/* Card stack — padded right so content doesn't sit under the × */}
-          <div className="flex flex-col items-center gap-2 pr-6">
+          <div className="flex flex-col items-center gap-2 pr-8">
             {/* Pitch slide — shows the latest slide with a progress bar */}
             {slides.length > 0 && (
               <div className="w-full flex justify-center">
