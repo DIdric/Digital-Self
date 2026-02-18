@@ -125,6 +125,8 @@ export default function ConversationPanelWithAvatar({
   const conversationReadyRef = useRef<boolean>(false);
   // Negotiated by ElevenLabs server in conversation_initiation_metadata
   const targetSampleRateRef = useRef<number>(16000);
+  // When true, incoming ElevenLabs audio is not forwarded to Simli (e.g. video is playing)
+  const suppressAudioRef = useRef<boolean>(false);
 
   const markStarted = useCallback(() => {
     setHasStarted(true);
@@ -185,8 +187,8 @@ export default function ConversationPanelWithAvatar({
               }
 
               case "audio":
-                // 🎯 THE HANDSHAKE: Send ElevenLabs audio to Simli
-                if (data.audio_event?.audio_base_64 && simliClient) {
+                // 🎯 THE HANDSHAKE: Send ElevenLabs audio to Simli (unless a video is playing)
+                if (data.audio_event?.audio_base_64 && simliClient && !suppressAudioRef.current) {
                   const audioData = base64ToUint8Array(data.audio_event.audio_base_64);
                   simliClient.sendAudioData(audioData);
                 }
@@ -216,6 +218,9 @@ export default function ConversationPanelWithAvatar({
                       setSlides((prev) => [...prev, item.title]);
                     } else if (item.type === "video") {
                       setVideos((prev) => [...prev, { url: item.url, title: item.title }]);
+                      // Stop the avatar talking so the visitor can watch in silence
+                      suppressAudioRef.current = true;
+                      ws.send(JSON.stringify({ type: "user_activity" }));
                     } else if (item.type === "connect") {
                       setShowConnect(true);
                     }
@@ -361,6 +366,7 @@ export default function ConversationPanelWithAvatar({
     setVideos([]);
     setShowConnect(false);
     setActiveMedia(null);
+    suppressAudioRef.current = false;
 
     try {
       // Check if Simli avatar is ready
@@ -451,13 +457,14 @@ export default function ConversationPanelWithAvatar({
     markStarted();
   }, [textInput, appStatus, startConversation, markStarted]);
 
-  // Dismiss all cards at once
+  // Dismiss all cards at once — also re-enable avatar audio
   const dismissCards = useCallback(() => {
     setIdeas([]);
     setSlides([]);
     setVideos([]);
     setActiveMedia(null);
     setShowConnect(false);
+    suppressAudioRef.current = false;
   }, []);
 
   const isActive = appStatus !== "idle" && appStatus !== "connecting";
