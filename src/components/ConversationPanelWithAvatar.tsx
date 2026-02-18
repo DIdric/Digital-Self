@@ -11,6 +11,7 @@ import { detectStructured } from "@/lib/detectStructured";
 import IdeaCard from "./IdeaCard";
 import SlideCard from "./SlideCard";
 import ConnectCard from "./ConnectCard";
+import VideoCard from "./VideoCard";
 
 /** Convert an ArrayBuffer (Int16 PCM) to a base64 string for WebSocket transmission. */
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -114,6 +115,7 @@ export default function ConversationPanelWithAvatar({
   const [activeMedia, setActiveMedia] = useState<NonNullable<MediaDetection> | null>(null);
   const [ideas, setIdeas] = useState<string[]>([]);
   const [slides, setSlides] = useState<string[]>([]);
+  const [videos, setVideos] = useState<{ url: string; title?: string }[]>([]);
   const [showConnect, setShowConnect] = useState(false);
 
   const websocketRef = useRef<WebSocket | null>(null);
@@ -212,6 +214,8 @@ export default function ConversationPanelWithAvatar({
                       setIdeas((prev) => [...prev, item.text]);
                     } else if (item.type === "slide") {
                       setSlides((prev) => [...prev, item.title]);
+                    } else if (item.type === "video") {
+                      setVideos((prev) => [...prev, { url: item.url, title: item.title }]);
                     } else if (item.type === "connect") {
                       setShowConnect(true);
                     }
@@ -354,6 +358,7 @@ export default function ConversationPanelWithAvatar({
     setAppStatus("connecting");
     setIdeas([]);
     setSlides([]);
+    setVideos([]);
     setShowConnect(false);
     setActiveMedia(null);
 
@@ -450,12 +455,13 @@ export default function ConversationPanelWithAvatar({
   const dismissCards = useCallback(() => {
     setIdeas([]);
     setSlides([]);
+    setVideos([]);
     setActiveMedia(null);
     setShowConnect(false);
   }, []);
 
   const isActive = appStatus !== "idle" && appStatus !== "connecting";
-  const hasCards = slides.length > 0 || ideas.length > 0 || !!activeMedia || showConnect;
+  const hasCards = slides.length > 0 || ideas.length > 0 || videos.length > 0 || !!activeMedia || showConnect;
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
@@ -507,6 +513,15 @@ export default function ConversationPanelWithAvatar({
             {activeMedia && (
               <div className="w-full flex justify-center">
                 <MediaCard media={activeMedia} />
+              </div>
+            )}
+
+            {/* Video embeds (Vimeo / YouTube case videos) */}
+            {videos.length > 0 && (
+              <div className="w-full flex flex-col items-center gap-2">
+                {videos.map((v, i) => (
+                  <VideoCard key={i} url={v.url} title={v.title} />
+                ))}
               </div>
             )}
 
