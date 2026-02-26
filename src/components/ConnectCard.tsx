@@ -1,10 +1,20 @@
 "use client";
 
-const LINKEDIN_URL = "https://www.linkedin.com/in/didricvandenborne/";
+const LINKEDIN_URL = "https://www.linkedin.com/in/didric/";
 const EMAIL = "didric@didric.nl";
-const EMAIL_SUBJECT = "Following up on our conversation";
+const DEFAULT_SUBJECT = "Following up on our conversation";
 
-export default function ConnectCard() {
+interface ConnectCardProps {
+  emailSubject?: string;
+  emailBody?: string;
+}
+
+export default function ConnectCard({ emailSubject, emailBody }: ConnectCardProps) {
+  const subject = emailSubject || DEFAULT_SUBJECT;
+  const mailtoHref = emailBody
+    ? `mailto:${EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`
+    : `mailto:${EMAIL}?subject=${encodeURIComponent(subject)}`;
+
   return (
     <div className="animate-[slide-in_300ms_ease-out] w-full max-w-[480px]">
       <div className="bg-[#1a1a1a] border border-white/10 rounded-lg px-5 py-4">
@@ -23,9 +33,9 @@ export default function ConnectCard() {
             Connect on LinkedIn
           </a>
 
-          {/* Email */}
+          {/* Email — opens visitor's email client with prefilled subject + body */}
           <a
-            href={`mailto:${EMAIL}?subject=${encodeURIComponent(EMAIL_SUBJECT)}`}
+            href={mailtoHref}
             className="flex-1 flex items-center justify-center gap-2 bg-[#04818f] hover:bg-[#03707c] text-white text-sm font-medium rounded-lg px-4 py-3 transition-colors"
           >
             <svg

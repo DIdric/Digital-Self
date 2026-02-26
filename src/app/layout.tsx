@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Didric | Digital Self",
-  description: "Voice-first conversational experience",
+  title: "Digital Didric",
+  description: "Chat with Digital Didric — always available, never needs coffee.",
 };
 
 export default function RootLayout({

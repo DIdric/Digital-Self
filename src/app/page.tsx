@@ -6,7 +6,7 @@ import ConversationPanelWithAvatar from "@/components/ConversationPanelWithAvata
 import TopicBubbles from "@/components/TopicBubbles";
 
 const GREETING =
-  "Hey! Welcome my digital self—always available, never needs coffee. I'm Didric, ask me anything.";
+  "Hey! I'm Digital Didric—always available, never needs coffee. Ask me anything.";
 
 const TOPICS = [
   "How do you think about loyalty?",

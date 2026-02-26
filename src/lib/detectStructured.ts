@@ -2,13 +2,16 @@ export type StructuredItem =
   | { type: "idea"; text: string }
   | { type: "slide"; title: string }
   | { type: "video"; url: string; title?: string }
-  | { type: "connect" };
+  | { type: "connect" }
+  | { type: "email"; subject: string; body: string };
 
 const IDEA_RE = /\[IDEA:\s*(.+?)\]/gi;
 const SLIDE_RE = /\[SLIDE:\s*(.+?)\]/gi;
 // [VIDEO: url] or [VIDEO: url | optional title]
 const VIDEO_RE = /\[VIDEO:\s*(https?:\/\/[^\]|]+?)(?:\s*\|\s*([^\]]+?))?\]/gi;
 const CONNECT_RE = /\[CONNECT\]/i;
+// [EMAIL: subject | body]
+const EMAIL_RE = /\[EMAIL:\s*([^\]|]+?)\s*\|\s*([^\]]+?)\]/i;
 
 /** Parse [IDEA:], [SLIDE:], [VIDEO:], and [CONNECT] tags from agent response text. */
 export function detectStructured(text: string): StructuredItem[] {
@@ -39,6 +42,11 @@ export function detectStructured(text: string): StructuredItem[] {
     items.push({ type: "connect" });
   }
 
+  const emailMatch = EMAIL_RE.exec(text);
+  if (emailMatch) {
+    items.push({ type: "email", subject: emailMatch[1].trim(), body: emailMatch[2].trim() });
+  }
+
   return items;
 }
 
@@ -49,6 +57,7 @@ export function stripStructuredTags(text: string): string {
     .replace(/\[SLIDE:\s*.+?\]/gi, "")
     .replace(/\[VIDEO:\s*https?:\/\/[^\]]+?\]/gi, "")
     .replace(/\[CONNECT\]/gi, "")
+    .replace(/\[EMAIL:\s*[^\]]+?\]/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }

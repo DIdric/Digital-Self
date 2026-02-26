@@ -1,17 +1,30 @@
 "use client";
 
+import { useCallback } from "react";
+
 interface SlideCardProps {
-  title: string;
-  slideNumber: number;
-  totalSlides: number;
+  slides: string[];
+  currentIndex: number;
+  onNavigate: (index: number) => void;
 }
 
-export default function SlideCard({ title, slideNumber, totalSlides }: SlideCardProps) {
+export default function SlideCard({ slides, currentIndex, onNavigate }: SlideCardProps) {
+  const total = slides.length;
+  const title = slides[currentIndex];
+
+  const prev = useCallback(() => {
+    if (currentIndex > 0) onNavigate(currentIndex - 1);
+  }, [currentIndex, onNavigate]);
+
+  const next = useCallback(() => {
+    if (currentIndex < total - 1) onNavigate(currentIndex + 1);
+  }, [currentIndex, total, onNavigate]);
+
   return (
     <div className="animate-[slide-in_300ms_ease-out] w-full max-w-[480px]">
       <div className="bg-[#1a1a1a] border border-[#04818f]/40 rounded-lg px-6 py-5">
+        {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          {/* Presentation icon */}
           <div className="flex items-center gap-2">
             <svg
               className="w-4 h-4 text-[#04818f] shrink-0"
@@ -29,20 +42,62 @@ export default function SlideCard({ title, slideNumber, totalSlides }: SlideCard
               Pitch
             </span>
           </div>
-          <span className="text-white/30 text-xs">
-            {slideNumber} / {totalSlides}
-          </span>
+          <span className="text-white/30 text-xs">{currentIndex + 1} / {total}</span>
         </div>
 
-        {/* Slide progress bar */}
+        {/* Progress bar */}
         <div className="w-full h-0.5 bg-white/10 rounded-full mb-4">
           <div
             className="h-full bg-[#04818f] rounded-full transition-all duration-500"
-            style={{ width: `${(slideNumber / totalSlides) * 100}%` }}
+            style={{ width: `${((currentIndex + 1) / total) * 100}%` }}
           />
         </div>
 
-        <h3 className="text-white text-lg font-semibold leading-snug">{title}</h3>
+        {/* Slide title */}
+        <h3 className="text-white text-lg font-semibold leading-snug mb-5">{title}</h3>
+
+        {/* Navigation arrows — only shown when there's more than one slide */}
+        {total > 1 && (
+          <div className="flex items-center justify-between">
+            <button
+              onClick={prev}
+              disabled={currentIndex === 0}
+              aria-label="Previous slide"
+              className="flex items-center gap-1.5 text-white/40 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors text-sm"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              Prev
+            </button>
+
+            {/* Dot indicators */}
+            <div className="flex gap-1.5">
+              {slides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => onNavigate(i)}
+                  aria-label={`Go to slide ${i + 1}`}
+                  className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                    i === currentIndex ? "bg-[#04818f] w-3" : "bg-white/20 hover:bg-white/40"
+                  }`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={next}
+              disabled={currentIndex === total - 1}
+              aria-label="Next slide"
+              className="flex items-center gap-1.5 text-white/40 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors text-sm"
+            >
+              Next
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

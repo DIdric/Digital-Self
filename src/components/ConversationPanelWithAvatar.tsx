@@ -117,8 +117,10 @@ export default function ConversationPanelWithAvatar({
   const [activeMedia, setActiveMedia] = useState<NonNullable<MediaDetection> | null>(null);
   const [ideas, setIdeas] = useState<string[]>([]);
   const [slides, setSlides] = useState<string[]>([]);
+  const [slideIndex, setSlideIndex] = useState(0);
   const [videos, setVideos] = useState<{ url: string; title?: string }[]>([]);
   const [showConnect, setShowConnect] = useState(false);
+  const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string } | null>(null);
 
   const websocketRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -217,13 +219,20 @@ export default function ConversationPanelWithAvatar({
                     if (item.type === "idea") {
                       setIdeas((prev) => [...prev, item.text]);
                     } else if (item.type === "slide") {
-                      setSlides((prev) => [...prev, item.title]);
+                      setSlides((prev) => {
+                        const next = [...prev, item.title];
+                        setSlideIndex(next.length - 1); // auto-advance to latest
+                        return next;
+                      });
                     } else if (item.type === "video") {
                       setVideos((prev) => [...prev, { url: item.url, title: item.title }]);
                       // Stop the avatar talking so the visitor can watch in silence
                       suppressAudioRef.current = true;
                       ws.send(JSON.stringify({ type: "user_activity" }));
                     } else if (item.type === "connect") {
+                      setShowConnect(true);
+                    } else if (item.type === "email") {
+                      setEmailDraft({ subject: item.subject, body: item.body });
                       setShowConnect(true);
                     }
                   }
@@ -365,8 +374,10 @@ export default function ConversationPanelWithAvatar({
     setAppStatus("connecting");
     setIdeas([]);
     setSlides([]);
+    setSlideIndex(0);
     setVideos([]);
     setShowConnect(false);
+    setEmailDraft(null);
     setActiveMedia(null);
     suppressAudioRef.current = false;
 
@@ -486,9 +497,11 @@ export default function ConversationPanelWithAvatar({
   const dismissCards = useCallback(() => {
     setIdeas([]);
     setSlides([]);
+    setSlideIndex(0);
     setVideos([]);
     setActiveMedia(null);
     setShowConnect(false);
+    setEmailDraft(null);
     suppressAudioRef.current = false;
   }, []);
 
@@ -564,13 +577,13 @@ export default function ConversationPanelWithAvatar({
 
           {/* Card stack — padded right so content doesn't sit under the × */}
           <div className="flex flex-col items-center gap-2 pr-8">
-            {/* Pitch slide — shows the latest slide with a progress bar */}
+            {/* Pitch slides — carousel, navigable */}
             {slides.length > 0 && (
               <div className="w-full flex justify-center">
                 <SlideCard
-                  title={slides[slides.length - 1]}
-                  slideNumber={slides.length}
-                  totalSlides={Math.max(slides.length, 4)}
+                  slides={slides}
+                  currentIndex={slideIndex}
+                  onNavigate={setSlideIndex}
                 />
               </div>
             )}
@@ -603,7 +616,10 @@ export default function ConversationPanelWithAvatar({
             {/* Connect CTA */}
             {showConnect && (
               <div className="w-full flex justify-center">
-                <ConnectCard />
+                <ConnectCard
+                  emailSubject={emailDraft?.subject}
+                  emailBody={emailDraft?.body}
+                />
               </div>
             )}
           </div>
