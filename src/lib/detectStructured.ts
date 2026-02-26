@@ -1,12 +1,13 @@
 export type StructuredItem =
   | { type: "idea"; text: string }
-  | { type: "slide"; title: string }
+  | { type: "slide"; title: string; body?: string }
   | { type: "video"; url: string; title?: string }
   | { type: "connect" }
   | { type: "email"; subject: string; body: string };
 
 const IDEA_RE = /\[IDEA:\s*(.+?)\]/gi;
-const SLIDE_RE = /\[SLIDE:\s*(.+?)\]/gi;
+// [SLIDE: title] or [SLIDE: title | body text]
+const SLIDE_RE = /\[SLIDE:\s*([^\]|]+?)(?:\s*\|\s*([^\]]+?))?\]/gi;
 // [VIDEO: url] or [VIDEO: url | optional title]
 const VIDEO_RE = /\[VIDEO:\s*(https?:\/\/[^\]|]+?)(?:\s*\|\s*([^\]]+?))?\]/gi;
 const CONNECT_RE = /\[CONNECT\]/i;
@@ -26,7 +27,7 @@ export function detectStructured(text: string): StructuredItem[] {
 
   SLIDE_RE.lastIndex = 0;
   while ((match = SLIDE_RE.exec(text)) !== null) {
-    items.push({ type: "slide", title: match[1].trim() });
+    items.push({ type: "slide", title: match[1].trim(), body: match[2]?.trim() });
   }
 
   VIDEO_RE.lastIndex = 0;

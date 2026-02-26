@@ -116,8 +116,10 @@ export default function ConversationPanelWithAvatar({
   const [hasStarted, setHasStarted] = useState(false);
   const [activeMedia, setActiveMedia] = useState<NonNullable<MediaDetection> | null>(null);
   const [ideas, setIdeas] = useState<string[]>([]);
-  const [slides, setSlides] = useState<string[]>([]);
+  const [slides, setSlides] = useState<{ title: string; body?: string }[]>([]);
   const [slideIndex, setSlideIndex] = useState(0);
+  // Track whether the user has manually navigated away from the latest slide
+  const userNavigatedRef = useRef(false);
   const [videos, setVideos] = useState<{ url: string; title?: string }[]>([]);
   const [showConnect, setShowConnect] = useState(false);
   const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string } | null>(null);
@@ -220,8 +222,13 @@ export default function ConversationPanelWithAvatar({
                       setIdeas((prev) => [...prev, item.text]);
                     } else if (item.type === "slide") {
                       setSlides((prev) => {
-                        const next = [...prev, item.title];
-                        setSlideIndex(next.length - 1); // auto-advance to latest
+                        const next = [...prev, { title: item.title, body: item.body }];
+                        // Stay on slide 1 unless the user has manually navigated
+                        // (all slides typically arrive in one batch, so we don't
+                        // want to auto-advance to the last one)
+                        if (!userNavigatedRef.current) {
+                          setSlideIndex(0);
+                        }
                         return next;
                       });
                     } else if (item.type === "video") {
@@ -375,6 +382,7 @@ export default function ConversationPanelWithAvatar({
     setIdeas([]);
     setSlides([]);
     setSlideIndex(0);
+    userNavigatedRef.current = false;
     setVideos([]);
     setShowConnect(false);
     setEmailDraft(null);
@@ -498,6 +506,7 @@ export default function ConversationPanelWithAvatar({
     setIdeas([]);
     setSlides([]);
     setSlideIndex(0);
+    userNavigatedRef.current = false;
     setVideos([]);
     setActiveMedia(null);
     setShowConnect(false);
@@ -583,7 +592,10 @@ export default function ConversationPanelWithAvatar({
                 <SlideCard
                   slides={slides}
                   currentIndex={slideIndex}
-                  onNavigate={setSlideIndex}
+                  onNavigate={(i) => {
+                    userNavigatedRef.current = true;
+                    setSlideIndex(i);
+                  }}
                 />
               </div>
             )}

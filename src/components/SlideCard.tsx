@@ -2,15 +2,20 @@
 
 import { useCallback } from "react";
 
+interface Slide {
+  title: string;
+  body?: string;
+}
+
 interface SlideCardProps {
-  slides: string[];
+  slides: Slide[];
   currentIndex: number;
   onNavigate: (index: number) => void;
 }
 
 export default function SlideCard({ slides, currentIndex, onNavigate }: SlideCardProps) {
   const total = slides.length;
-  const title = slides[currentIndex];
+  const slide = slides[currentIndex];
 
   const prev = useCallback(() => {
     if (currentIndex > 0) onNavigate(currentIndex - 1);
@@ -54,11 +59,16 @@ export default function SlideCard({ slides, currentIndex, onNavigate }: SlideCar
         </div>
 
         {/* Slide title */}
-        <h3 className="text-white text-lg font-semibold leading-snug mb-5">{title}</h3>
+        <h3 className="text-white text-lg font-semibold leading-snug mb-2">{slide.title}</h3>
+
+        {/* Slide body — only shown when the agent includes body text */}
+        {slide.body && (
+          <p className="text-white/60 text-sm leading-relaxed mb-4">{slide.body}</p>
+        )}
 
         {/* Navigation arrows — only shown when there's more than one slide */}
         {total > 1 && (
-          <div className="flex items-center justify-between">
+          <div className={`flex items-center justify-between ${slide.body ? "" : "mt-3"}`}>
             <button
               onClick={prev}
               disabled={currentIndex === 0}
