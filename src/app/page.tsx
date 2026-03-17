@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { SimliClient, SimliClientConfig } from "simli-client";
+import { SimliClient, generateSimliSessionToken, generateIceServers } from "simli-client";
 import ConversationPanelWithAvatar from "@/components/ConversationPanelWithAvatar";
 import TopicBubbles from "@/components/TopicBubbles";
 
@@ -61,46 +61,52 @@ export default function Home() {
       return;
     }
 
-    const client = new SimliClient();
+    let client: SimliClient | null = null;
+    let cancelled = false;
 
-    const config: SimliClientConfig = {
-      apiKey: simliConfig.apiKey,
-      faceID: simliConfig.faceId,
-      handleSilence: true,
-      maxSessionLength: 3600,
-      maxIdleTime: 600,
-      session_token: "",
-      videoRef: videoRef.current,
-      audioRef: audioRef.current,
-      enableConsoleLogs: true,
-      SimliURL: "https://api.simli.ai",
-      maxRetryAttempts: 100,
-      retryDelay_ms: 2000,
-      videoReceivedTimeout: 15000,
-      enableSFU: true,
-      model: "fasttalk",
-    };
+    (async () => {
+      try {
+        const { session_token } = await generateSimliSessionToken({
+          config: {
+            faceId: simliConfig.faceId,
+            handleSilence: true,
+            maxSessionLength: 3600,
+            maxIdleTime: 600,
+            model: "fasttalk",
+          },
+          apiKey: simliConfig.apiKey,
+        });
 
-    client.Initialize(config);
+        const iceServers = await generateIceServers(simliConfig.apiKey);
 
-    client.on("connected", () => {
-      console.log("[Simli] Connected - avatar ready");
-      setSimliReady(true);
-    });
+        if (cancelled || !videoRef.current || !audioRef.current) return;
 
-    client.on("failed", (reason: string) => {
-      console.error("[Simli] Failed:", reason);
-    });
+        client = new SimliClient(
+          session_token,
+          videoRef.current,
+          audioRef.current,
+          iceServers
+        );
 
-    client.start().catch((err) => {
-      console.error("[Simli] Start error:", err);
-    });
+        client.on("connected", () => {
+          console.log("[Simli] Connected - avatar ready");
+          setSimliReady(true);
+        });
 
-    setSimliClient(client);
+        client.on("failed", (reason: string) => {
+          console.error("[Simli] Failed:", reason);
+        });
 
-    // Cleanup on unmount only
+        setSimliClient(client);
+        await client.start();
+      } catch (err) {
+        console.error("[Simli] Init error:", err);
+      }
+    })();
+
     return () => {
-      client.close();
+      cancelled = true;
+      client?.stop();
     };
   }, [simliConfig]);
 
