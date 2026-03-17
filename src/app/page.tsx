@@ -88,12 +88,12 @@ export default function Home() {
           iceServers
         );
 
-        client.on("connected", () => {
+        client.on("start", () => {
           console.log("[Simli] Connected - avatar ready");
           setSimliReady(true);
         });
 
-        client.on("failed", (reason: string) => {
+        client.on("error", (reason: string) => {
           console.error("[Simli] Failed:", reason);
         });
 
